@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Local con Personalidad</title>
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💬 Chatbot Local con Personalidad</h1>
+            <p>Conversa con diferentes personalidades de IA, todo en tu computadora</p>
+        </header>
+        
+        <div class="personality-selector">
+            <h3>Elige una personalidad:</h3>
+            <div class="personalities">
+                <button class="personality-btn active" data-personality="ada">
+                    🧪 Ada<br>
+                    <small>Asistente de Lab</small>
+                </button>
+                <button class="personality-btn" data-personality="dr_smith">
+                    👨‍🏫 Dr. Smith<br>
+                    <small>Profesor Estricto</small>
+                </button>
+                <button class="personality-btn" data-personality="luna">
+                    🌙 Luna<br>
+                    <small>Compañera de Clase</small>
+                </button>
+                <button class="personality-btn" data-personality="mentor">
+                    🎯 Mentor<br>
+                    <small>Coach Profesional</small>
+                </button>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <div id="chat-messages" class="chat-messages">
+                <div class="message bot">
+                    <strong>Ada:</strong> ¡Hola! Soy Ada, tu asistente de laboratorio. ¿En qué puedo ayudarte hoy? 🧪
+                </div>
+            </div>
+            
+            <div class="input-container">
+                <input type="text" id="message-input" placeholder="Escribe tu mensaje aquí..." autofocus>
+                <button id="send-btn">Enviar</button>
+                <button id="clear-btn" title="Limpiar conversación">🗑️</button>
+            </div>
+        </div>
+        
+        <footer>
+            <p>💡 <strong>Tip:</strong> Cada personalidad tiene su propio estilo. ¡Experimenta con todas!</p>
+        </footer>
+    </div>
+    
+    <script>
+        let currentPersonality = 'ada';
+        
+        // Selección de personalidad
+        document.querySelectorAll('.personality-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.personality-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentPersonality = this.dataset.personality;
+                
+                // Mensaje de cambio de personalidad
+                addMessage('sistema', `Has cambiado a ${this.innerText.split('\\n')[0]}`, 'system');
+            });
+        });
+        
+        // Función para agregar mensajes al chat
+        function addMessage(sender, message, type = 'user') {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            if (type === 'user') {
+                messageDiv.innerHTML = `<strong>Tú:</strong> ${message}`;
+            } else if (type === 'bot') {
+                messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+            } else {
+                messageDiv.innerHTML = `<em>${message}</em>`;
+            }
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // Función para enviar mensaje
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Agregar mensaje del usuario
+            addMessage('Tú', message, 'user');
+            input.value = '';
+            
+            // Mostrar indicador de escritura
+            addMessage('', '...', 'bot');
+            
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        personality: currentPersonality
+                    })
+                });
+                
+                // Eliminar indicador de escritura
+                const messages = document.getElementById('chat-messages');
+                messages.removeChild(messages.lastChild);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addMessage(data.personality_name, data.response, 'bot');
+                } else {
+                    console.error(response)
+                    addMessage('Error', 'No se pudo obtener respuesta', 'system');
+                }
+            } catch (error) {
+                // Eliminar indicador de escritura si hay error
+                const messages = document.getElementById('chat-messages');
+                if (messages.lastChild.textContent === '...') {
+                    messages.removeChild(messages.lastChild);
+                }
+                addMessage('Error', 'Error de conexión: ' + error.message, 'system');
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('message-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        // Limpiar conversación
+        document.getElementById('clear-btn').addEventListener('click', async () => {
+            if (confirm('¿Seguro que quieres limpiar la conversación?')) {
+                await fetch('/clear', { method: 'POST' });
+                document.getElementById('chat-messages').innerHTML = 
+                    '<div class="message bot"><strong>Ada:</strong> ¡Conversación reiniciada! ¿En qué puedo ayudarte?</div>';
+            }
+        });
+    </script>
+</body>
+</html>
